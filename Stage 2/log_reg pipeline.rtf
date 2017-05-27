@@ -1,0 +1,50 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1504\cocoasubrtf820
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 %spark2.pyspark\
+\
+from pyspark.ml import Pipeline\
+from pyspark.ml.classification import LogisticRegression\
+from pyspark.ml.feature import HashingTF, Tokenizer\
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, TimestampType\
+\
+schema = StructType([StructField('id', IntegerType(), True),StructField('product_uid', IntegerType(), True),StructField('product_title', StringType(), True),StructField('search_term', StringType(), True),StructField('relevance', IntegerType(), True)])\
+path = "/tmp/train.csv"\
+oritraindata = spark.read.csv("/tmp/train.csv", header=True, mode="DROPMALFORMED", schema=schema)\
+traindata2 = oritraindata.select("product_uid", "search_term", "relevance")\
+traindata = traindata2.selectExpr("product_uid as product_uid", "search_term as search_term", "relevance as label")\
+traindata.show()\
+\
+\
+# Configure an ML pipeline, which consists of one stages: tokenizer, hashingTF, and lr.\
+tokenizer = Tokenizer(inputCol="search_term", outputCol="words")\
+hashingTF = HashingTF(inputCol=tokenizer.getOutputCol(), outputCol="features")\
+lr = LogisticRegression(maxIter=10, regParam=0.3, elasticNetParam=0.8)\
+pipeline = Pipeline(stages=[tokenizer, hashingTF, lr])\
+\
+# Fit the pipeline to training documents.\
+model = pipeline.fit(traindata)\
+\
+# Prepare test documents, which are unlabeled (id, text) tuples.\
+schema2 = StructType([StructField('id', IntegerType(), True),StructField('product_uid', IntegerType(), True),StructField('product_title', StringType(), True),StructField('search_term', StringType(), True)])\
+oritestdata = spark.read.csv("/tmp/test.csv", header=True, mode="DROPMALFORMED", schema=schema2)\
+testdata = oritestdata.select("product_uid", "search_term")\
+\
+# Make predictions on test documents and print columns of interest.\
+prediction = model.transform(testdata)\
+selected = prediction.select("product_uid", "search_term", "probability", "prediction")\
+for row in selected.collect():\
+    rid, text, prob, prediction = row\
+    print("(%d, %s) --> prob=%s, prediction=%f" % (rid, text, str(prob), prediction))\
+    \
+    \
+#oritraindata = spark.read.csv("/tmp/train.csv")\
+#traincolnames = Seq("id", "prod_uid", "title", "search", "rel")\
+#columnNames = Seq("id", "prod_uid")\
+#traindata = oritraindata.toDF(traincolnames: _*).select(columnNames.head, columnNames.tail: _*)\
+#oritraindata.show()\
+}
