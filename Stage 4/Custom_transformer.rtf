@@ -1,0 +1,81 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1504\cocoasubrtf820
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 %spark2.pyspark\
+\
+# Creating my own term frequency function for dataframes and using that score as feature for linear regression\
+\
+from pyspark.ml import Pipeline\
+from pyspark.ml.classification import LogisticRegression\
+from pyspark.ml.regression import LinearRegression\
+from pyspark.ml.feature import HashingTF, Tokenizer, Word2Vec\
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, TimestampType, DoubleType, ArrayType\
+from pyspark.sql.functions import lit\
+from pyspark.sql.functions import *\
+from pyspark.sql.functions import udf\
+from difflib import SequenceMatcher\
+from pyspark.ml.linalg import Vectors\
+from pyspark.ml.feature import VectorAssembler\
+\
+\
+schema = StructType([StructField('id', IntegerType(), True),StructField('product_uid', IntegerType(), True),StructField('product_title', StringType(), True),StructField('search_term', StringType(), True),StructField('relevance', DoubleType(), True)])\
+path = "/tmp/train.csv"\
+oritraindata = spark.read.csv("/tmp/train.csv", header=True, mode="DROPMALFORMED", schema=schema)\
+traindata2 = oritraindata.select("id", "product_title", "product_uid", "search_term", "relevance").limit(10000)\
+traindata = traindata2.selectExpr("id as id", "product_title as product_title", "product_uid as product_uid", "search_term as search_term", "relevance as label")\
+\
+#loading data from product descriptions\
+desc_schema = StructType([StructField('product_uid', IntegerType(), True),StructField('description', StringType(), True)])\
+prod_data = spark.read.csv("/tmp/product_descriptions.csv", header=True, mode="DROPMALFORMED", schema=desc_schema)\
+prod_data = prod_data.selectExpr("product_uid as product_uid1", "description as description")\
+traindata = traindata.join(prod_data.select("product_uid1", "description"), col("product_uid1") == col("product_uid"))\
+traindata = traindata.sort(col("id"))\
+traindata.show()\
+\
+def getTFscoreDF(mydf):\
+    array = []\
+    for row in mydf.collect():\
+        searchwords = row.search_term.split()\
+        numwords = len(searchwords)\
+        desc = row.description\
+        title = row.product_title\
+        score1 = 0\
+        score2 = 0\
+        for word in searchwords:\
+            score1 += title.lower().split().count(word.lower())\
+            score2 += desc.lower().split().count(word.lower())\
+        \
+        score1 = score1/(1.0 * numwords)\
+        score2 = score2/(1.0 * numwords)\
+        TFscore = score1*4.0 + score2*1.0\
+        array.append(Row(id=row.id, product_uid= row.product_uid, values=TFscore, label=row.label))\
+    #rdd = sparkContext.makeRDD[RDD](rows)\
+    schema = StructType([StructField('id', IntegerType(), True), StructField('product_uid',IntegerType()), StructField('values',DoubleType()) ,StructField('label', DoubleType(), True)])\
+    #df = spark.createDataFrame(array, DoubleType())\
+    #labelsDF = mydf.select("label")\
+    df = spark.createDataFrame(array, schema)\
+    return df\
+\
+df = getTFscoreDF(traindata)\
+df.show()\
+\
+vectorAssembler = VectorAssembler(inputCols=["values", "product_uid"], outputCol="features")\
+expr = [col(c).alias(c) \
+        for c in vectorAssembler.getInputCols()]\
+\
+#df2 = df.select(*expr)\
+df3 = vectorAssembler.transform(df)\
+df3.show()\
+\
+#hashingTF = HashingTF(inputCol="values", outputCol="features")\
+#lr = LinearRegression(maxIter=10, regParam=0.3, elasticNetParam=0.8)\
+#pipeline = Pipeline(stages=[vectorAssembler,lr])\
+#model = pipeline.fit()\
+model = lr.fit(df3)\
+rescaledData = model.transform(df3)\
+rescaledData.show()\
+}
