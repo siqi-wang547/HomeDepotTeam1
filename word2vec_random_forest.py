@@ -95,11 +95,19 @@ test_vector = model.transform(tokenized_test.withColumn("tokenized_info", col('t
 from pyspark.ml.regression import RandomForestRegressor 
 from pyspark.ml.feature import StringIndexer, VectorIndexer 
 from pyspark.ml import Pipeline 
-rf = RandomForestRegressor(featuresCol="features")
-featureIndexer = VectorIndexer(inputCol="features", outputCol="indexedFeatures").fit(trained)
+"""
+rf = RandomForestRegressor(featuresCol="vec")
+featureIndexer = VectorIndexer(inputCol="vec", outputCol="indexedFeatures").fit(trained)
 labelIndexer = StringIndexer(inputCol="relevance", outputCol="label").fit(trained)
 pipeline = Pipeline(stages=[labelIndexer, featureIndexer, rf])
 rf_model = pipeline.fit(trained)
+prediction = model.transform(test_vector)
+"""
+# second example of rf
+# https://mingchen0919.github.io/learning-apache-spark/featuresCol-and-labelCol.html
+rf = RandomForestRegressor(featuresCol="vec",labelCol="relevance", numTrees=15, maxDepth=3)
+pipeline = Pipeline(stages=[rf])
+model = pipeline.fit(trained)
 prediction = model.transform(test_vector)
 
 # for row in selected.collect():
