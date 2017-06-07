@@ -155,9 +155,10 @@ predict.show()
 # print predict.count()
 
 # evaluator RMSE
+'''
 from pyspark.ml.evaluation import RegressionEvaluator
 evaluator = RegressionEvaluator(labelCol="relevance", predictionCol="prediction", metricName="rmse")
 rmse = evaluator.evaluate(predict)
 print("RMSE Root Mean Squared Error = %g" % rmse)
-
+'''
 predict.toPandas().to_csv(path + 'paramgrid.csv', index=False)
