@@ -97,24 +97,28 @@ train_feat.show()
 # train rf model
 from pyspark.ml.regression import RandomForestRegressor 
 from pyspark.ml import Pipeline 
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
+
 
 # random forest estimator
-rf = RandomForestRegressor(featuresCol="features",labelCol="relevance", numTrees=15, maxDepth=6)
+rf = RandomForestRegressor(featuresCol="features",labelCol="relevance", maxDepth=5)
 
  
 # paramgrid, can add param of transformer using addGrid()
 paramGrid = ParamGridBuilder() \
-    .addGrid(rf.numTrees, [5]).addGrid(rf.maxDepth, [5]) \
+    .addGrid(rf.numTrees,[5]) \
     .build()
+    
+
 # cross validation
-crossval = CrossValidator(estimator=rf,
+# https://docs.databricks.com/spark/latest/mllib/binary-classification-mllib-pipelines.html
+from pyspark.ml.evaluation import RegressionEvaluator
+cv = TrainValidationSplit(estimator=rf,
                           estimatorParamMaps=paramGrid,
-                          evaluator=BinaryClassificationEvaluator(),
-                          numFolds=2)  
+                          evaluator=RegressionEvaluator(labelCol="relevance"),
+                          trainRatio=0.8)  
 # Run cross-validation, and choose the best set of parameters.
-model = crossval.fit(train_feat)
+model = cv.fit(train_feat)
 
 
 
